@@ -15,12 +15,12 @@ Gem::Specification.new do |s|
   s.homepage    = %q{https://github.com/siddhartham/twisted-caldav}
   s.authors     = [%q{Siddhartha Mukherjee}]
   s.email       = [%q{mukherjee.siddhartha@gmail.com}]
-  s.add_runtime_dependency 'icalendar', '~> 2.x'
-  s.add_runtime_dependency 'uuid', '~> 2.x'
-  s.add_runtime_dependency 'net-http-digest_auth', '~> 1.x'
-  s.add_runtime_dependency 'builder', '~> 3.x'
-  s.add_runtime_dependency 'rspec', '~> 3.5.0'
-  s.add_runtime_dependency 'fakeweb', '~> 1.x'
+  #s.add_runtime_dependency 'icalendar', '~> 2.x'
+  #s.add_runtime_dependency 'uuid', '~> 2.x'
+  #s.add_runtime_dependency 'net-http-digest_auth', '~> 1.x'
+  #s.add_runtime_dependency 'builder', '~> 3.x'
+  #s.add_runtime_dependency 'rspec', '~> 3.5.0'
+  #s.add_runtime_dependency 'fakeweb', '~> 1.x'
 
   s.description = <<-DESC
   Ruby client for searching, creating, editing calendar and tasks. Tested with ubuntu based calendar server installation.
