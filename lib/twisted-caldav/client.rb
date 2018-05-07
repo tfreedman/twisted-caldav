@@ -1,6 +1,5 @@
 module TwistedCaldav
   class Client
-    include Icalendar
     attr_accessor :host, :port, :url, :user, :password, :ssl
 
     def format=( fmt )
@@ -37,9 +36,9 @@ module TwistedCaldav
 
         elsif @authtype == 'basic'
           # this is fine for us
-      else
-        raise "Please use basic or digest"
-      end
+        else
+          raise "Please use basic or digest"
+        end
       else
         @authtype = 'basic'
       end
@@ -58,7 +57,7 @@ module TwistedCaldav
       http
     end
 
-    def find_events data
+    def find_events(data = {})
       result = ""
       events = []
       res = nil
@@ -87,7 +86,11 @@ module TwistedCaldav
           end
         end
 
-        vevent = TwistedCaldav::Request::ReportVEVENT.new(dtstart, dtend, data[:summary]).to_xml
+        if data[:summary]
+          summary = data[:summary]
+        end
+
+        vevent = TwistedCaldav::Request::ReportVEVENT.new(dtstart, dtend, summary).to_xml
         req.body = vevent
         res = http.request(req)
       }
