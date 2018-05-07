@@ -32,11 +32,12 @@ module TwistedCaldav
         end    
 
         class ReportVEVENT < Base
-            attr_accessor :tstart, :tend
+            attr_accessor :tstart, :tend, :summary
 
-            def initialize( tstart=nil, tend=nil )
+            def initialize( tstart=nil, tend=nil, summary=nil )
                 @tstart = tstart
                 @tend   = tend
+                @summary = summary
                 super()
             end
 
@@ -49,7 +50,14 @@ module TwistedCaldav
                     xml.c :filter do
                         xml.c 'comp-filter'.intern, :name=> 'VCALENDAR' do
                             xml.c 'comp-filter'.intern, :name=> 'VEVENT' do
-                                xml.c 'time-range'.intern, :start=> "#{tstart}Z", :end=> "#{tend}Z"
+                                if tstart != nil && tend != nil
+                                  xml.c 'time-range'.intern, :start=> "#{tstart}Z", :end=> "#{tend}Z"
+                                end
+                                if summary != nil
+                                  xml.c 'prop-filter'.intern, :name=> 'SUMMARY' do
+                                    xml.c 'text-match'.intern, summary
+                                  end
+                                end
                             end
                         end
                     end
