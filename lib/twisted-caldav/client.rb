@@ -71,7 +71,7 @@ module TwistedCaldav
         end
 
         if data[:start]
-          if date[:start].is_a? Integer
+          if data[:start].is_a? Integer
             dtstart = Time.at(data[:start]).utc.strftime("%Y%m%dT%H%M%S")
           else
             dtstart = Time.parse(data[:start]).utc.strftime("%Y%m%dT%H%M%S")
@@ -79,7 +79,7 @@ module TwistedCaldav
         end
 
         if data[:end]
-          if date[:end].is_a? Integer
+          if data[:end].is_a? Integer
             dtend = Time.at(data[:end]).utc.strftime("%Y%m%dT%H%M%S")
           else
             dtend = Time.parse(data[:end]).utc.strftime("%Y%m%dT%H%M%S")
