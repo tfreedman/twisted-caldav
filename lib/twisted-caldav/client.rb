@@ -222,6 +222,46 @@ module TwistedCaldav
       r.first.todos.first
     end
 
+    def find_todos(data = {})
+      result = ""
+      todos = []
+      res = nil
+      __create_http.start {|http|
+        req = Net::HTTP::Report.new(@url, initheader = {'Content-Type'=>'application/xml', 'Depth'=>'1'})
+
+        if not @authtype == 'digest'
+          req.basic_auth @user, @password
+        else
+          req.add_field 'Authorization', digestauth('REPORT')
+        end
+
+        if data[:summary]
+          summary = data[:summary]
+        end
+
+        vtodo = TwistedCaldav::Request::ReportVTODO.new(summary).to_xml
+        req.body = vtodo
+        res = http.request(req)
+      }
+      errorhandling res
+      result = ""
+#     puts res.body
+#     puts res.code
+      xml = REXML::Document.new(res.body)
+      REXML::XPath.each( xml, '//c:calendar-data/', {"c"=>"urn:ietf:params:xml:ns:caldav"} ){|c| result << "#{c.text}\n"}
+      r = Icalendar::Calendar.parse(result)
+      unless r.empty?
+        r.each do |calendar|
+          calendar.todos.each do |todo|
+            todos << todo
+          end
+        end
+        todos
+      else
+        return false
+      end
+    end
+
     def create_todo todo
       c = Calendar.new
       uuid = UUID.new.generate
