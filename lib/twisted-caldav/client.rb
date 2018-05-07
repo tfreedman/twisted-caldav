@@ -17,7 +17,7 @@ module TwistedCaldav
         @proxy_host = proxy_uri.host
         @proxy_port = proxy_uri.port.to_i
       end
-      
+
       uri = URI(data[:uri])
       @host     = uri.host
       @port     = uri.port.to_i
@@ -25,23 +25,23 @@ module TwistedCaldav
       @user     = data[:user]
       @password = data[:password]
       @ssl      = uri.scheme == 'https'
-      
+
       unless data[:authtype].nil?
-      	@authtype = data[:authtype]
-      	if @authtype == 'digest'
-      	
-      		@digest_auth = Net::HTTP::DigestAuth.new
-      		@duri = URI.parse data[:uri]
-      		@duri.user = @user
-      		@duri.password = @password
-      		
-      	elsif @authtype == 'basic'
-	    	  # this is fine for us
-	    else
-	    	raise "Please use basic or digest"
-	    end
+        @authtype = data[:authtype]
+        if @authtype == 'digest'
+
+          @digest_auth = Net::HTTP::DigestAuth.new
+          @duri = URI.parse data[:uri]
+          @duri.user = @user
+          @duri.password = @password
+
+        elsif @authtype == 'basic'
+          # this is fine for us
       else
-      	@authtype = 'basic'
+        raise "Please use basic or digest"
+      end
+      else
+        @authtype = 'basic'
       end
     end
 
@@ -63,62 +63,72 @@ module TwistedCaldav
       events = []
       res = nil
       __create_http.start {|http|
-      	
-        req = Net::HTTP::Report.new(@url, initheader = {'Content-Type'=>'application/xml'} )
-        
-		if not @authtype == 'digest'
-			req.basic_auth @user, @password
-		else
-			req.add_field 'Authorization', digestauth('REPORT')
-		end
-		    if data[:start].is_a? Integer
-          req.body = TwistedCaldav::Request::ReportVEVENT.new(Time.at(data[:start]).utc.strftime("%Y%m%dT%H%M%S"), 
-                                                        Time.at(data[:end]).utc.strftime("%Y%m%dT%H%M%S") ).to_xml
+        req = Net::HTTP::Report.new(@url, initheader = {'Content-Type'=>'application/xml', 'Depth'=>'1'})
+
+        if not @authtype == 'digest'
+          req.basic_auth @user, @password
         else
-          req.body = TwistedCaldav::Request::ReportVEVENT.new(Time.parse(data[:start]).utc.strftime("%Y%m%dT%H%M%S"), 
-                                                        Time.parse(data[:end]).utc.strftime("%Y%m%dT%H%M%S") ).to_xml
+          req.add_field 'Authorization', digestauth('REPORT')
         end
-        res = http.request(req)
-      } 
-        errorhandling res
-        result = ""
-        #puts res.body
-        xml = REXML::Document.new(res.body)
-        REXML::XPath.each( xml, '//c:calendar-data/', {"c"=>"urn:ietf:params:xml:ns:caldav"} ){|c| result << c.text}
-        r = Icalendar.parse(result)      
-        unless r.empty?
-          r.each do |calendar|
-            calendar.events.each do |event|
-              events << event
-            end
+
+        if data[:start]
+          if date[:start].is_a? Integer
+            dtstart = Time.at(data[:start]).utc.strftime("%Y%m%dT%H%M%S")
+          else
+            dtstart = Time.parse(data[:start]).utc.strftime("%Y%m%dT%H%M%S")
           end
-          events
-        else
-          return false
         end
+
+        if data[:end]
+          if date[:end].is_a? Integer
+            dtend = Time.at(data[:end]).utc.strftime("%Y%m%dT%H%M%S")
+          else
+            dtend = Time.parse(data[:end]).utc.strftime("%Y%m%dT%H%M%S")
+          end
+        end
+
+        vevent = TwistedCaldav::Request::ReportVEVENT.new(dtstart, dtend, data[:summary]).to_xml
+        req.body = vevent
+        res = http.request(req)
+      }
+      errorhandling res
+      result = ""
+#     puts res.body
+#     puts res.code
+      xml = REXML::Document.new(res.body)
+      REXML::XPath.each( xml, '//c:calendar-data/', {"c"=>"urn:ietf:params:xml:ns:caldav"} ){|c| result << "#{c.text}\n"}
+      r = Icalendar::Calendar.parse(result)
+      unless r.empty?
+        r.each do |calendar|
+          calendar.events.each do |event|
+            events << event
+          end
+        end
+        events
+      else
+        return false
+      end
     end
 
     def find_event uuid
       res = nil
       __create_http.start {|http|
-        req = Net::HTTP::Get.new("#{@url}/#{uuid}.ics")        
+        req = Net::HTTP::Get.new("#{@url}/#{uuid}.ics")
         if not @authtype == 'digest'
-        	req.basic_auth @user, @password
+          req.basic_auth @user, @password
         else
-        	req.add_field 'Authorization', digestauth('GET')
+          req.add_field 'Authorization', digestauth('GET')
         end
         res = http.request( req )
-      }  
+      }
       errorhandling res
       begin
-      	r = Icalendar.parse(res.body)
+        r = Icalendar::Calendar.parse(res.body)
       rescue
-      	return false
+        return false
       else
-      	r.first.events.first 
+        r.first.events.first
       end
-
-      
     end
 
     def delete_event uuid
@@ -126,9 +136,9 @@ module TwistedCaldav
       __create_http.start {|http|
         req = Net::HTTP::Delete.new("#{@url}/#{uuid}.ics")
         if not @authtype == 'digest'
-        	req.basic_auth @user, @password
+          req.basic_auth @user, @password
         else
-        	req.add_field 'Authorization', digestauth('DELETE')
+          req.add_field 'Authorization', digestauth('DELETE')
         end
         res = http.request( req )
       }
@@ -147,7 +157,7 @@ module TwistedCaldav
       uuid = UUID.new.generate
       raise DuplicateError if entry_with_uuid_exists?(uuid)
       c.event do
-        uid           uuid 
+        uid           uuid
         dtstart       DateTime.parse(event[:start])
         dtend         DateTime.parse(event[:end])
         categories    event[:categories]# Array
@@ -170,9 +180,9 @@ module TwistedCaldav
         req = Net::HTTP::Put.new("#{@url}/#{uuid}.ics")
         req['Content-Type'] = 'text/calendar'
         if not @authtype == 'digest'
-        	req.basic_auth @user, @password
+          req.basic_auth @user, @password
         else
-        	req.add_field 'Authorization', digestauth('PUT')
+          req.add_field 'Authorization', digestauth('PUT')
         end
         req.body = cstring
         res = http.request( req )
@@ -191,7 +201,6 @@ module TwistedCaldav
     end
 
     def add_alarm tevent, altCal="Calendar"
-    
     end
 
     def find_todo uuid
@@ -199,27 +208,23 @@ module TwistedCaldav
       __create_http.start {|http|
         req = Net::HTTP::Get.new("#{@url}/#{uuid}.ics")
         if not @authtype == 'digest'
-        	req.basic_auth @user, @password
+          req.basic_auth @user, @password
         else
-        	req.add_field 'Authorization', digestauth('GET')
+          req.add_field 'Authorization', digestauth('GET')
         end
         res = http.request( req )
-      }  
+      }
       errorhandling res
-      r = Icalendar.parse(res.body)
+      r = Icalendar::Calendar.parse(res.body)
       r.first.todos.first
     end
-
-
-
-
 
     def create_todo todo
       c = Calendar.new
       uuid = UUID.new.generate
       raise DuplicateError if entry_with_uuid_exists?(uuid)
       c.todo do
-        uid           uuid 
+        uid           uuid
         start         DateTime.parse(todo[:start])
         duration      todo[:duration]
         summary       todo[:title]
@@ -241,9 +246,9 @@ module TwistedCaldav
         req = Net::HTTP::Put.new("#{@url}/#{uuid}.ics")
         req['Content-Type'] = 'text/calendar'
         if not @authtype == 'digest'
-        	req.basic_auth @user, @password
+          req.basic_auth @user, @password
         else
-        	req.add_field 'Authorization', digestauth('PUT')
+          req.add_field 'Authorization', digestauth('PUT')
         end
         req.body = cstring
         res = http.request( req )
@@ -259,63 +264,61 @@ module TwistedCaldav
       __create_http.start {|http|
         req = Net::HTTP::Report.new(@url, initheader = {'Content-Type'=>'application/xml'} )
         if not @authtype == 'digest'
-        	req.basic_auth @user, @password
+          req.basic_auth @user, @password
         else
-        	req.add_field 'Authorization', digestauth('REPORT')
+          req.add_field 'Authorization', digestauth('REPORT')
         end
         req.body = TwistedCaldav::Request::ReportVTODO.new.to_xml
         res = http.request( req )
       }
-      errorhandling res 
+      errorhandling res
       format.parse_todo( res.body )
     end
 
     private
-    
+
     def digestauth method
-		
-	    h = Net::HTTP.new @duri.host, @duri.port
-	    if @ssl
-	    	h.use_ssl = @ssl
-	    	h.verify_mode = OpenSSL::SSL::VERIFY_NONE
-	    end
-	    req = Net::HTTP::Get.new @duri.request_uri
-	    
-	    res = h.request req
-	    # res is a 401 response with a WWW-Authenticate header
-	    
-	    auth = @digest_auth.auth_header @duri, res['www-authenticate'], method
-	    
-    	return auth
+      h = Net::HTTP.new @duri.host, @duri.port
+      if @ssl
+        h.use_ssl = @ssl
+        h.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      end
+      req = Net::HTTP::Get.new @duri.request_uri
+
+      res = h.request req
+      # res is a 401 response with a WWW-Authenticate header
+
+      auth = @digest_auth.auth_header @duri, res['www-authenticate'], method
+
+      return auth
     end
-    
+
     def entry_with_uuid_exists? uuid
       res = nil
-      
+
       __create_http.start {|http|
         req = Net::HTTP::Get.new("#{@url}/#{uuid}.ics")
         if not @authtype == 'digest'
-        	req.basic_auth @user, @password
+          req.basic_auth @user, @password
         else
-        	req.add_field 'Authorization', digestauth('GET')
+          req.add_field 'Authorization', digestauth('GET')
         end
-        
+
         res = http.request( req )
-      	
       }
       begin
         errorhandling res
-      	Icalendar.parse(res.body)
+        Icalendar::Calendar.parse(res.body)
       rescue
-      	return false
+        return false
       else
-      	return true
+        return true
       end
     end
-    def  errorhandling response   
+    def errorhandling response
       raise NotExistError if response.code.to_i == 404
       raise AuthenticationError if response.code.to_i == 401
-      raise NotExistError if response.code.to_i == 410 
+      raise NotExistError if response.code.to_i == 410
       raise APIError if response.code.to_i >= 500
     end
   end

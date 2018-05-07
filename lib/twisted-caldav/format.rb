@@ -15,7 +15,7 @@ module TwistedCaldav
         xml = REXML::Document.new(s)
 
         REXML::XPath.each( xml, '//c:calendar-data/', {"c"=>"urn:ietf:params:xml:ns:caldav"} ){|c| result << c.text}
-        r = Icalendar.parse(result)
+        r = Icalendar::Calendar.parse(result)
         r
       end
 
@@ -32,7 +32,7 @@ module TwistedCaldav
 
       def parse_tasks( vcal )
         return_tasks = Array.new
-        cals = Icalendar.parse(vcal)
+        cals = Icalendar::Calendar.parse(vcal)
         cals.each { |tcal|
           tcal.todos.each { |ttask|  # FIXME
             return_tasks << ttask
@@ -42,7 +42,7 @@ module TwistedCaldav
       end
 
       def parse_events( vcal )
-        Icalendar.parse(vcal)        
+        Icalendar::Calendar.parse(vcal)        
       end
 
       def parse_single( body )
