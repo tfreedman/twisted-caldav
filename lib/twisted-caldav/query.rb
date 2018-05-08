@@ -40,12 +40,11 @@ module TwistedCaldav
     end
 
     def self.event( param=nil )
-        self.new.event( param )
+      self.new.event( param )
     end
 
-
     def self.todo( param=nil )
-        self.new.todo
+      self.new.todo
     end
   end
 end
