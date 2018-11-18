@@ -96,8 +96,8 @@ module TwistedCaldav
       }
       errorhandling res
       result = ""
-#     puts res.body
-#     puts res.code
+      puts res.body
+      puts res.code
       xml = REXML::Document.new(res.body)
       REXML::XPath.each( xml, '//c:calendar-data/', {"c"=>"urn:ietf:params:xml:ns:caldav"} ){|c| result << "#{c.text}\n"}
       r = Icalendar::Calendar.parse(result)
@@ -155,43 +155,22 @@ module TwistedCaldav
     end
 
     def create_event event
-      c = Calendar.new
-      c.events = []
-      uuid = UUID.new.generate
-      raise DuplicateError if entry_with_uuid_exists?(uuid)
-      c.event do
-        uid           uuid
-        dtstart       DateTime.parse(event[:start])
-        dtend         DateTime.parse(event[:end])
-        categories    event[:categories]# Array
-        contacts      event[:contacts] # Array
-        attendees     event[:attendees]# Array
-        duration      event[:duration]
-        summary       event[:title]
-        description   event[:description]
-        klass         event[:accessibility] #PUBLIC, PRIVATE, CONFIDENTIAL
-        location      event[:location]
-        geo_location  event[:geo_location]
-        status        event[:status]
-        url           event[:url]
-        rrule         event[:rrule]
-      end
-      cstring = c.to_ical
       res = nil
+      uid = event.events[0].uid
       http = Net::HTTP.new(@host, @port)
       __create_http.start { |http|
-        req = Net::HTTP::Put.new("#{@url}/#{uuid}.ics")
+        req = Net::HTTP::Put.new("#{@url}/#{uid}.ics")
         req['Content-Type'] = 'text/calendar'
         if not @authtype == 'digest'
           req.basic_auth @user, @password
         else
           req.add_field 'Authorization', digestauth('PUT')
         end
-        req.body = cstring
+        req.body = event.to_ical
         res = http.request( req )
       }
       errorhandling res
-      find_event uuid
+      find_event uid
     end
 
     def update_event event
@@ -298,24 +277,6 @@ module TwistedCaldav
       }
       errorhandling res
       find_todo uuid
-    end
-
-    def create_todo
-      res = nil
-      raise DuplicateError if entry_with_uuid_exists?(uuid)
-
-      __create_http.start {|http|
-        req = Net::HTTP::Report.new(@url, initheader = {'Content-Type'=>'application/xml'} )
-        if not @authtype == 'digest'
-          req.basic_auth @user, @password
-        else
-          req.add_field 'Authorization', digestauth('REPORT')
-        end
-        req.body = TwistedCaldav::Request::ReportVTODO.new.to_xml
-        res = http.request( req )
-      }
-      errorhandling res
-      format.parse_todo( res.body )
     end
 
     private
