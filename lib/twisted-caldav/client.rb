@@ -156,10 +156,11 @@ module TwistedCaldav
 
     def create_event event
       res = nil
-      uid = event.events[0].uid
+      uuid = event.events[0].uid
+      raise DuplicateError if entry_with_uuid_exists?(uuid)
       http = Net::HTTP.new(@host, @port)
       __create_http.start { |http|
-        req = Net::HTTP::Put.new("#{@url}/#{uid}.ics")
+        req = Net::HTTP::Put.new("#{@url}/#{uuid}.ics")
         req['Content-Type'] = 'text/calendar'
         if not @authtype == 'digest'
           req.basic_auth @user, @password
@@ -170,7 +171,7 @@ module TwistedCaldav
         res = http.request( req )
       }
       errorhandling res
-      find_event uid
+      find_event uuid
     end
 
     def update_event event
