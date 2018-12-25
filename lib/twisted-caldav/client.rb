@@ -57,6 +57,62 @@ module TwistedCaldav
       http
     end
 
+    def find_contacts(data = {})
+      result = ""
+      vcards = []
+      res = nil
+      __create_http.start {|http|
+        req = Net::HTTP::Report.new(@url, initheader = {'Content-Type'=>'application/xml', 'Depth'=>'1'})
+
+        if not @authtype == 'digest'
+          req.basic_auth @user, @password
+        else
+          req.add_field 'Authorization', digestauth('REPORT')
+        end
+
+        req.body = TwistedCaldav::Request::ReportVCARD.new().to_xml
+        res = http.request(req)
+      }
+      errorhandling res
+      result = ""
+      puts res.body
+      puts res.code
+      xml = REXML::Document.new(res.body)
+      REXML::XPath.each( xml, '//c:address-data/', {"c"=>"urn:ietf:params:xml:ns:carddav"} ){ |c|
+        vcards << c.text
+      }
+      return vcards
+    end
+
+    def find_calendars
+      result = ""
+      res = nil
+      __create_http.start {|http|
+        req = Net::HTTP::Propfind.new(@url, initheader = {'Content-Type'=>'application/xml', 'Depth'=>'1'})
+
+        if not @authtype == 'digest'
+          req.basic_auth @user, @password
+        else
+          req.add_field 'Authorization', digestauth('REPORT')
+        end
+        vevent = TwistedCaldav::Request::Propfind.new.to_xml
+        puts 'VEVENT:'
+        puts vevent
+        puts '___ END VEVENT ___'
+        req.body = vevent
+        res = http.request(req)
+      }
+      errorhandling res
+      result = ""
+      puts res.body
+      puts res.code
+      xml = REXML::Document.new(res.body)
+      resources = []
+#      REXML::XPath.each( xml, '//d:response/', ){|c| resources << c}
+#      puts resources
+      return xml
+    end
+
     def find_events(data = {})
       result = ""
       events = []
@@ -109,7 +165,7 @@ module TwistedCaldav
         end
         events
       else
-        return false
+        return []
       end
     end
 
@@ -132,6 +188,10 @@ module TwistedCaldav
       else
         r.first.events.first
       end
+    end
+
+    def delete_todo(uuid)
+      delete_event(uuid)
     end
 
     def delete_event uuid
@@ -174,9 +234,16 @@ module TwistedCaldav
       find_event uuid
     end
 
+    def update_todo todo
+      if delete_todo todo[0].todos[0].uid
+        create_todo todo
+      else
+        return false
+      end
+    end
+
     def update_event event
-      #TODO... fix me
-      if delete_event event[:uid]
+      if delete_event event[0].events[0].uid
         create_event event
       else
         return false
@@ -238,32 +305,16 @@ module TwistedCaldav
         end
         todos
       else
-        return false
+        return []
       end
     end
 
     def create_todo todo
-      c = Calendar.new
-      uuid = UUID.new.generate
-      raise DuplicateError if entry_with_uuid_exists?(uuid)
-      c.todo do
-        uid           uuid
-        start         DateTime.parse(todo[:start])
-        duration      todo[:duration]
-        summary       todo[:title]
-        description   todo[:description]
-        klass         todo[:accessibility] #PUBLIC, PRIVATE, CONFIDENTIAL
-        location      todo[:location]
-        percent       todo[:percent]
-        priority      todo[:priority]
-        url           todo[:url]
-        geo           todo[:geo_location]
-        status        todo[:status]
-        rrule         todo[:rrule]
-      end
-      c.todo.uid = uuid
-      cstring = c.to_ical
       res = nil
+      puts todo
+      uuid = todo.todos[0].uid
+      puts uuid
+      raise DuplicateError if entry_with_uuid_exists?(uuid)
       http = Net::HTTP.new(@host, @port)
       __create_http.start { |http|
         req = Net::HTTP::Put.new("#{@url}/#{uuid}.ics")
@@ -273,7 +324,7 @@ module TwistedCaldav
         else
           req.add_field 'Authorization', digestauth('PUT')
         end
-        req.body = cstring
+        req.body = todo.to_ical
         res = http.request( req )
       }
       errorhandling res
@@ -329,8 +380,7 @@ module TwistedCaldav
   end
 
 
-  class TwistedCaldavError < StandardError
-  end
+  class TwistedCaldavError  < StandardError; end
   class AuthenticationError < TwistedCaldavError; end
   class DuplicateError      < TwistedCaldavError; end
   class APIError            < TwistedCaldavError; end
