@@ -21,6 +21,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'builder', '~> 3.x'
   s.add_runtime_dependency 'rspec', '~> 3.x'
   s.add_runtime_dependency 'fakeweb', '~> 1.x'
+  s.add_runtime_dependency 'vcardigan', '~> 0.0.9'
 
   s.description = <<-DESC
   Ruby client for searching, creating, editing calendar and tasks. Tested with ubuntu based calendar server installation.
