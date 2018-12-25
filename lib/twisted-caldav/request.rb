@@ -1,7 +1,8 @@
 require 'builder'
 
 module TwistedCaldav
-  NAMESPACES = { "xmlns:d" => 'DAV:', "xmlns:c" => "urn:ietf:params:xml:ns:caldav" }
+  CALDAV_NAMESPACES = { "xmlns:d" => 'DAV:', "xmlns:c" => "urn:ietf:params:xml:ns:caldav" }
+  CARDDAV_NAMESPACES = { "xmlns:d" => 'DAV:', "xmlns:c" => "urn:ietf:params:xml:ns:carddav" }
   module Request
     class Base
       def initialize
@@ -11,7 +12,23 @@ module TwistedCaldav
       attr :xml
     end
 
-    class Mkcalendar < Base
+    class PROPFIND < Base
+      def initialize
+        super()
+      end
+
+      def to_xml
+        xml.d :propfind, CALDAV_NAMESPACES do
+          xml.d :prop do
+            xml.d :displayname
+            xml.d :resourcetype
+            xml.c "supported-calendar-component-set".intern, CALDAV_NAMESPACES
+          end
+        end
+      end
+    end
+
+    class MKCALENDAR < Base
       attr_accessor :displayname, :description
 
       def initialize(displayname = nil, description = nil)
@@ -20,12 +37,27 @@ module TwistedCaldav
       end
 
       def to_xml
-        xml.c :mkcalendar, NAMESPACES do
+        xml.c :mkcalendar, CALDAV_NAMESPACES do
           xml.d :set do
             xml.d :prop do
               xml.d :displayname, displayname unless displayname.to_s.empty?
               xml.tag! "c:calendar-description", description, "xml:lang" => "en" unless description.to_s.empty?
             end
+          end
+        end
+      end
+    end
+
+    class ReportVCARD < Base
+      def initialize()
+        super()
+      end
+
+      def to_xml
+        xml.c 'addressbook-query'.intern, CARDDAV_NAMESPACES do
+          xml.d :prop do
+            xml.d :getetag
+            xml.c 'address-data'.intern
           end
         end
       end
@@ -42,9 +74,9 @@ module TwistedCaldav
       end
 
       def to_xml
-        xml.c 'calendar-query'.intern, NAMESPACES do
+        xml.c 'calendar-query'.intern, CALDAV_NAMESPACES do
           xml.d :prop do
-              #xml.d :getetag
+              xml.d :getetag
               xml.c 'calendar-data'.intern
           end
           xml.c :filter do
@@ -74,7 +106,7 @@ module TwistedCaldav
       end
 
       def to_xml
-        xml.c 'calendar-query'.intern, NAMESPACES do
+        xml.c 'calendar-query'.intern, CALDAV_NAMESPACES do
           xml.d :prop do
             xml.d :getetag
             xml.c 'calendar-data'.intern
