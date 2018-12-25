@@ -95,7 +95,7 @@ module TwistedCaldav
         else
           req.add_field 'Authorization', digestauth('REPORT')
         end
-        vevent = TwistedCaldav::Request::Propfind.new.to_xml
+        vevent = TwistedCaldav::Request::PROPFIND.new.to_xml
         puts 'VEVENT:'
         puts vevent
         puts '___ END VEVENT ___'
