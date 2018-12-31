@@ -2,14 +2,6 @@ module TwistedCaldav
   class Client
     attr_accessor :host, :port, :url, :user, :password, :ssl
 
-    def format=( fmt )
-      @format = fmt
-    end
-
-    def format
-      @format ||= Format::Debug.new
-    end
-
     def initialize( data )
       unless data[:proxy_uri].nil?
         proxy_uri   = URI(data[:proxy_uri])
@@ -52,12 +44,34 @@ module TwistedCaldav
       end
       if @ssl
         http.use_ssl = @ssl
-        http.verify_mode = OpenSSL::SSL::VERIFY_NONE
       end
       http
     end
 
-    def find_contacts(data = {})
+    def find_addressbooks
+      result = ""
+      res = nil
+      __create_http.start {|http|
+        req = Net::HTTP::Propfind.new(@url, initheader = {'Content-Type'=>'application/xml', 'Depth'=>'0'})
+
+        if not @authtype == 'digest'
+          req.basic_auth @user, @password
+        else
+          req.add_field 'Authorization', digestauth('REPORT')
+        end
+        req.body = TwistedCaldav::Request::PROPFIND.new('CARDDAV').to_xml
+        puts req.body
+        res = http.request(req)
+      }
+      errorhandling res
+      result = ""
+      xml = REXML::Document.new(res.body)
+      resources = []
+#      REXML::XPath.each( xml, '//d:response/', ){|c| resources << c}
+      return xml
+    end
+
+    def find_vcards(data = {})
       result = ""
       vcards = []
       res = nil
@@ -75,8 +89,6 @@ module TwistedCaldav
       }
       errorhandling res
       result = ""
-      puts res.body
-      puts res.code
       xml = REXML::Document.new(res.body)
       REXML::XPath.each( xml, '//c:address-data/', {"c"=>"urn:ietf:params:xml:ns:carddav"} ){ |c|
         vcards << c.text
@@ -95,21 +107,15 @@ module TwistedCaldav
         else
           req.add_field 'Authorization', digestauth('REPORT')
         end
-        vevent = TwistedCaldav::Request::PROPFIND.new.to_xml
-        puts 'VEVENT:'
-        puts vevent
-        puts '___ END VEVENT ___'
+        vevent = TwistedCaldav::Request::PROPFIND.new('CALDAV').to_xml
         req.body = vevent
         res = http.request(req)
       }
       errorhandling res
       result = ""
-      puts res.body
-      puts res.code
       xml = REXML::Document.new(res.body)
       resources = []
 #      REXML::XPath.each( xml, '//d:response/', ){|c| resources << c}
-#      puts resources
       return xml
     end
 
@@ -152,10 +158,10 @@ module TwistedCaldav
       }
       errorhandling res
       result = ""
-      puts res.body
-      puts res.code
       xml = REXML::Document.new(res.body)
       REXML::XPath.each( xml, '//c:calendar-data/', {"c"=>"urn:ietf:params:xml:ns:caldav"} ){|c| result << "#{c.text}\n"}
+
+
       r = Icalendar::Calendar.parse(result)
       unless r.empty?
         r.each do |calendar|
@@ -169,7 +175,7 @@ module TwistedCaldav
       end
     end
 
-    def find_event uuid
+    def find_event(uuid)
       res = nil
       __create_http.start {|http|
         req = Net::HTTP::Get.new("#{@url}/#{uuid}.ics")
@@ -194,7 +200,7 @@ module TwistedCaldav
       delete_event(uuid)
     end
 
-    def delete_event uuid
+    def delete_event(uuid)
       res = nil
       __create_http.start {|http|
         req = Net::HTTP::Delete.new("#{@url}/#{uuid}.ics")
@@ -214,7 +220,7 @@ module TwistedCaldav
       end
     end
 
-    def create_event event
+    def create_event(event)
       res = nil
       uuid = event.events[0].uid
       raise DuplicateError if entry_with_uuid_exists?(uuid)
@@ -234,7 +240,7 @@ module TwistedCaldav
       find_event uuid
     end
 
-    def update_todo todo
+    def update_todo(todo)
       if delete_todo todo[0].todos[0].uid
         create_todo todo
       else
@@ -242,7 +248,7 @@ module TwistedCaldav
       end
     end
 
-    def update_event event
+    def update_event(event)
       if delete_event event[0].events[0].uid
         create_event event
       else
@@ -250,10 +256,7 @@ module TwistedCaldav
       end
     end
 
-    def add_alarm tevent, altCal="Calendar"
-    end
-
-    def find_todo uuid
+    def find_todo(uuid)
       res = nil
       __create_http.start {|http|
         req = Net::HTTP::Get.new("#{@url}/#{uuid}.ics")
@@ -270,7 +273,6 @@ module TwistedCaldav
     end
 
     def find_todos(data = {})
-      result = ""
       todos = []
       res = nil
       __create_http.start {|http|
@@ -291,29 +293,16 @@ module TwistedCaldav
         res = http.request(req)
       }
       errorhandling res
-      result = ""
-#     puts res.body
-#     puts res.code
       xml = REXML::Document.new(res.body)
-      REXML::XPath.each( xml, '//c:calendar-data/', {"c"=>"urn:ietf:params:xml:ns:caldav"} ){|c| result << "#{c.text}\n"}
-      r = Icalendar::Calendar.parse(result)
-      unless r.empty?
-        r.each do |calendar|
-          calendar.todos.each do |todo|
-            todos << todo
-          end
-        end
-        todos
-      else
-        return []
-      end
+      REXML::XPath.each( xml, '//c:calendar-data/', {"c"=>"urn:ietf:params:xml:ns:caldav"} ) { |c|
+        todos << c.text
+      }
+      return todos
     end
 
-    def create_todo todo
+    def create_todo(todo)
       res = nil
-      puts todo
       uuid = todo.todos[0].uid
-      puts uuid
       raise DuplicateError if entry_with_uuid_exists?(uuid)
       http = Net::HTTP.new(@host, @port)
       __create_http.start { |http|
@@ -333,7 +322,7 @@ module TwistedCaldav
 
     private
 
-    def digestauth method
+    def digestauth(method)
       h = Net::HTTP.new @duri.host, @duri.port
       if @ssl
         h.use_ssl = @ssl
@@ -349,7 +338,7 @@ module TwistedCaldav
       return auth
     end
 
-    def entry_with_uuid_exists? uuid
+    def entry_with_uuid_exists?(uuid)
       res = nil
 
       __create_http.start {|http|

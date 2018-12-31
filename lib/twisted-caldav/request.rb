@@ -13,16 +13,30 @@ module TwistedCaldav
     end
 
     class PROPFIND < Base
-      def initialize
+      def initialize(namespace)
+        if namespace == 'CALDAV'
+          @namespace = 'CALDAV'
+        elsif namespace == 'CARDDAV'
+          @namespace = 'CARDDAV'
+        end
         super()
       end
 
       def to_xml
-        xml.d :propfind, CALDAV_NAMESPACES do
-          xml.d :prop do
-            xml.d :displayname
-            xml.d :resourcetype
-            xml.c "supported-calendar-component-set".intern, CALDAV_NAMESPACES
+        if @namespace == 'CALDAV'
+          xml.d :propfind, CALDAV_NAMESPACES do
+            xml.d :prop do
+              xml.d :displayname
+              xml.d :resourcetype
+              xml.c "supported-calendar-component-set".intern, CALDAV_NAMESPACES
+            end
+          end
+        elsif @namespace == 'CARDDAV'
+          xml.d :propfind, { "xmlns:d" => 'DAV:', "xmlns:cs" => "http://calendarserver.org/ns/" } do
+            xml.d :prop do
+              xml.d :displayname
+              xml.cs :getctag
+            end
           end
         end
       end

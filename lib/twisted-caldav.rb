@@ -8,6 +8,6 @@ require 'time'
 require 'date'
 require 'vcardigan'
 
-['client.rb', 'request.rb', 'net.rb', 'query.rb', 'filter.rb', 'format.rb'].each do |f|
+['client.rb', 'request.rb', 'net.rb', 'query.rb', 'filter.rb'].each do |f|
     require File.join( File.dirname(__FILE__), 'twisted-caldav', f )
 end
