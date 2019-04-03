@@ -120,7 +120,6 @@ module TwistedCaldav
     end
 
     def find_events(data = {})
-      result = ""
       events = []
       res = nil
       __create_http.start {|http|
@@ -156,23 +155,16 @@ module TwistedCaldav
         req.body = vevent
         res = http.request(req)
       }
+
       errorhandling res
       result = ""
       xml = REXML::Document.new(res.body)
-      REXML::XPath.each( xml, '//c:calendar-data/', {"c"=>"urn:ietf:params:xml:ns:caldav"} ){|c| result << "#{c.text}\n"}
 
+      REXML::XPath.each( xml, '//c:calendar-data/', {"c"=>"urn:ietf:params:xml:ns:caldav"} ){|c|
+         events << c.text
+      }
 
-      r = Icalendar::Calendar.parse(result)
-      unless r.empty?
-        r.each do |calendar|
-          calendar.events.each do |event|
-            events << event
-          end
-        end
-        events
-      else
-        return []
-      end
+      return events
     end
 
     def find_event(uuid)
@@ -198,6 +190,26 @@ module TwistedCaldav
 
     def delete_todo(uuid)
       delete_event(uuid)
+    end
+
+    def delete_vcard(uuid)
+      res = nil
+      __create_http.start {|http|
+        req = Net::HTTP::Delete.new("#{@url}/#{uuid}.vcf")
+        if not @authtype == 'digest'
+          req.basic_auth @user, @password
+        else
+          req.add_field 'Authorization', digestauth('DELETE')
+        end
+        res = http.request( req )
+      }
+      errorhandling res
+      # accept any success code
+      if res.code.to_i.between?(200,299)
+        return true
+      else
+        return false
+      end
     end
 
     def delete_event(uuid)
@@ -240,6 +252,14 @@ module TwistedCaldav
       find_event uuid
     end
 
+    def update_vcard(vcard)
+      if delete_vcard vcard.uid[0].values[0]
+        create_vcard vcard
+      else
+        return false
+      end
+    end
+
     def update_todo(todo)
       if delete_todo todo[0].todos[0].uid
         create_todo todo
@@ -254,6 +274,21 @@ module TwistedCaldav
       else
         return false
       end
+    end
+
+    def find_vcard(uuid)
+      res = nil
+      __create_http.start {|http|
+        req = Net::HTTP::Get.new("#{@url}/#{uuid}.vcf")
+        if not @authtype == 'digest'
+          req.basic_auth @user, @password
+        else
+          req.add_field 'Authorization', digestauth('GET')
+        end
+        res = http.request( req )
+      }
+      errorhandling res
+      res.body
     end
 
     def find_todo(uuid)
@@ -298,6 +333,26 @@ module TwistedCaldav
         todos << c.text
       }
       return todos
+    end
+
+    def create_vcard(vcard)
+      res = nil
+      uuid = vcard.uid[0].values[0]
+      raise DuplicateError if entry_with_uuid_exists?(uuid)
+      http = Net::HTTP.new(@host, @port)
+      __create_http.start { |http|
+        req = Net::HTTP::Put.new("#{@url}/#{uuid}.vcf")
+        req['Content-Type'] = 'text/vcard'
+        if not @authtype == 'digest'
+          req.basic_auth @user, @password
+        else
+          req.add_field 'Authorization', digestauth('PUT')
+        end
+        req.body = vcard.to_s
+        res = http.request( req )
+      }
+      errorhandling res
+      find_vcard uuid
     end
 
     def create_todo(todo)
