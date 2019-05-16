@@ -90,8 +90,9 @@ module TwistedCaldav
       errorhandling res
       result = ""
       xml = REXML::Document.new(res.body)
-      REXML::XPath.each( xml, '//c:address-data/', {"c"=>"urn:ietf:params:xml:ns:carddav"} ){ |c|
-        vcards << c.text
+      vcards = []
+      REXML::XPath.each( xml, '//d:response/'){ |d|
+        vcards << {filename: d.elements["d:href"].text.split('/')[-1], card: d.elements["d:propstat"].elements["d:prop"].elements[2].text}
       }
       return vcards
     end
@@ -195,7 +196,7 @@ module TwistedCaldav
     def delete_vcard(uuid)
       res = nil
       __create_http.start {|http|
-        req = Net::HTTP::Delete.new("#{@url}/#{uuid}.vcf")
+        req = Net::HTTP::Delete.new("#{@url}/#{filename}")
         if not @authtype == 'digest'
           req.basic_auth @user, @password
         else
@@ -253,6 +254,7 @@ module TwistedCaldav
     end
 
     def update_vcard(vcard)
+      #this definitely won't work - fix later.
       if delete_vcard vcard.uid[0].values[0]
         create_vcard vcard
       else
@@ -335,24 +337,33 @@ module TwistedCaldav
       return todos
     end
 
-    def create_vcard(vcard)
+    def create_vcard(data)
       res = nil
-      uuid = vcard.uid[0].values[0]
-      raise DuplicateError if entry_with_uuid_exists?(uuid)
+      uuid = data[:card].uid[0].values[0]
+      puts data[:card].class
+      puts data[:filename]
+      filename = nil
+      if data[:filename].nil?
+        raise DuplicateError if entry_with_uuid_exists?(uuid)
+        filename = "#{uuid}.vcf"
+      else
+        filename = data[:filename]
+      end
       http = Net::HTTP.new(@host, @port)
-      __create_http.start { |http|
-        req = Net::HTTP::Put.new("#{@url}/#{uuid}.vcf")
+      puts __create_http.start { |http|
+        req = Net::HTTP::Put.new("#{@url}/#{filename}")
         req['Content-Type'] = 'text/vcard'
         if not @authtype == 'digest'
           req.basic_auth @user, @password
         else
           req.add_field 'Authorization', digestauth('PUT')
         end
-        req.body = vcard.to_s
+        req.body = data[:card].to_s
         res = http.request( req )
+        $res = res
       }
       errorhandling res
-      find_vcard uuid
+#      find_vcard filename
     end
 
     def create_todo(todo)
